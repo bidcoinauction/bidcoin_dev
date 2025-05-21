@@ -8,3 +8,4 @@ vite.config.ts.*
 .env*
 
 .env* # n adds a newline before the pattern
+.env*
