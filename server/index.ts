@@ -13,7 +13,7 @@ app.use(express.json());
 app.use('/api', apiRoutes);
 
 // Only create and listen on the server if not in a serverless environment
-if (process.env.NODE_ENV !== 'vercel') {
+if (process.env.NODE_ENV !== 'production') {
   const server = createServer(app);
 
   // Set up WebSocket server
@@ -95,3 +95,6 @@ if (process.env.NODE_ENV !== 'vercel') {
     }
   })();
 }
+
+// Export for Vercel serverless
+export default app;

@@ -9,7 +9,8 @@
     }
   },
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/api/(.*)", "dest": "/api/$1.js" },
+    { "src": "/ws", "dest": "/api/ws.js" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
   "env": {
