@@ -40,7 +40,8 @@ export const nfts = pgTable("nfts", {
   
   // Price metrics
   priceAvg: decimal("price_avg", { precision: 10, scale: 6 }), // Average price at which NFTs are sold
-  priceCeiling: decimal("price_ceiling", { precision: 10, scale: 6 }), // Highest price at which an NFT in the collection was sold
+  priceCeiling: decimal("price_ceiling", { precision: 10, scale: 6 }), // Highest price at which an NFT in the collection is up for sale
+  priceFloor: decimal("price_floor", { precision: 10, scale: 6 }), // Lowest price at which an NFT in the collection is up for sale
   
   // Volume metrics
   volume24h: decimal("volume_24h", { precision: 10, scale: 6 }), // Added for 24h volume
@@ -89,11 +90,9 @@ export const insertNftSchema = createInsertSchema(nfts).pick({
   collectionImage: true,
   
   // Price metrics
-  floorPrice: true,
-  floorPriceUsd: true,
-  retailPrice: true,
   priceAvg: true,
   priceCeiling: true,
+  priceFloor: true,
   
   // Volume metrics
   volume24h: true,

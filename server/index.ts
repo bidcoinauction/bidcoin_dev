@@ -1,13 +1,33 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import path from "path";
 
+// Define custom WebSocket interface with clientId property
+interface CustomWebSocket extends WebSocket {
+  clientId?: string;
+}
+
+// Create Express app
 const app = express();
+const server = createServer(app);
+
+// Create WebSocket server attached to the HTTP server
+const wss = new WebSocketServer({ 
+  server,
+  path: '/ws' // Explicitly set the path
+});
+
+// Store connected clients
+const clients = new Set<CustomWebSocket>();
+
+// Middleware setup
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static('public'));
 
+// Logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -38,35 +58,108 @@ app.use((req, res, next) => {
   next();
 });
 
+// WebSocket connection handler
+wss.on('connection', (ws: CustomWebSocket, req) => {
+  log('[websocket] Client connected');
+  clients.add(ws);
+  
+  // Generate a unique client ID
+  const clientId = `client-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  ws.clientId = clientId;
+  
+  // Send initial connection confirmation
+  ws.send(JSON.stringify({
+    type: 'connected',
+    data: {
+      clientId,
+      serverVersion: '1.0.0',
+      message: 'Connected to WebSocket server',
+      timestamp: new Date().toISOString()
+    }
+  }));
+  
+  // Handle messages from client
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message.toString());
+      log(`[websocket] Received message from ${clientId}: ${data.type}`);
+      
+      // Handle different message types
+      if (data.type === 'ping') {
+        // Respond to ping with pong
+        ws.send(JSON.stringify({
+          type: 'pong',
+          data: {
+            timestamp: Date.now(),
+            clientId
+          }
+        }));
+      } else if (data.type === 'subscribe' && data.auctionId) {
+        // Handle subscription to auction
+        ws.send(JSON.stringify({
+          type: 'subscription-confirmed',
+          data: {
+            auctionId: data.auctionId,
+            message: `Subscribed to auction ${data.auctionId} updates`,
+            timestamp: new Date().toISOString()
+          }
+        }));
+      }
+    } catch (error) {
+      log(`[websocket] Error processing message: ${error}`);
+    }
+  });
+  
+  // Handle client disconnect
+  ws.on('close', () => {
+    log(`[websocket] Client ${clientId} disconnected`);
+    clients.delete(ws);
+  });
+});
+
+// Main application setup
 (async () => {
-  const server = await registerRoutes(app);
+  try {
+    // Register routes
+    await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    // Error handling middleware
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      res.status(status).json({ message });
+      console.error(err);
+    });
 
-    res.status(status).json({ message });
-    throw err;
-  });
+    // Setup Vite or serve static files
+    if (app.get("env") === "development") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+    // Use port 4000 for development
+    const port = process.env.PORT || (process.env.NODE_ENV === "development" ? 4000 : 5000);
+    
+    // Use localhost for binding - fix the type error by using a number for port
+    server.listen(Number(port), 'localhost', () => {
+      log(`Server running at http://localhost:${port}`);
+      log(`WebSocket server running at ws://localhost:${port}/ws`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
   }
-
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
 })();
+
+// Export a function to broadcast messages to all clients
+export function broadcastMessage(type: string, data: any) {
+  const message = JSON.stringify({ type, data });
+  log(`[websocket] Broadcasting ${type} to ${clients.size} clients`);
+  
+  clients.forEach((client: CustomWebSocket) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
