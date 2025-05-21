@@ -112,10 +112,12 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
   // Get real-time auction data via WebSocket
   const { subscribe } = useWebSocket();
 
-  // Timer system - always show 1 minute for demo purposes
-  const [localEndTime, setLocalEndTime] = useState<Date>(
-    new Date(Date.now() + 60 * 1000)
-  );
+  // Timer system - always show 30 seconds for demo purposes
+  const [localEndTime, setLocalEndTime] = useState<Date>(() => {
+    const initialTime = new Date();
+    initialTime.setSeconds(initialTime.getSeconds() + 30);
+    return initialTime;
+  });
 
   const { formattedTime, isComplete, secondsRemaining } = useCountdown({
     endTime: localEndTime,
@@ -149,9 +151,9 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
     // Update leader
     setLocalLeader(randomBidder);
 
-    // Reset timer (Bidcoin reset mechanism to 1 minute)
+    // Reset timer (Bidcoin reset mechanism to 30 seconds)
     const resetTime = new Date();
-    resetTime.setSeconds(resetTime.getSeconds() + 60);
+    resetTime.setSeconds(resetTime.getSeconds() + 30);
     setLocalEndTime(resetTime);
   }, [localBidCount]);
 
@@ -186,9 +188,9 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
           setLocalLeader(data.bid.bidderAddress);
         }
 
-        // Reset timer (AuctionBlock reset mechanism)
+        // Reset timer (AuctionBlock reset mechanism to 30 seconds)
         const resetTime = new Date();
-        resetTime.setSeconds(resetTime.getSeconds() + 60);
+        resetTime.setSeconds(resetTime.getSeconds() + 30);
 
         // If bid in last 3 seconds, add +3 seconds (prevent sniping)
         if (secondsRemaining < 3) {
@@ -219,9 +221,14 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
 
   // Format time left with actual countdown
   const formatTimeLeft = () => {
-    const minutes = Math.floor(secondsRemaining / 60);
-    const seconds = Math.floor(secondsRemaining % 60);
-
+    if (!formattedTime) return "00:00";
+    
+    const parts = formattedTime.split(':');
+    if (parts.length < 3) return "00:00";
+    
+    const minutes = parseInt(parts[1], 10) || 0;
+    const seconds = parseInt(parts[2], 10) || 0;
+    
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
@@ -391,9 +398,9 @@ export default function AuctionCard({ auction }: AuctionCardProps) {
                   const newBidCount = localBidCount + 1;
                   setLocalCurrentBid(parseFloat((newBidCount * 0.03).toFixed(2)));
 
-                  // Reset timer (AuctionBlock reset mechanism)
+                  // Reset timer (AuctionBlock reset mechanism to 30 seconds)
                   const resetTime = new Date();
-                  resetTime.setSeconds(resetTime.getSeconds() + 60);
+                  resetTime.setSeconds(resetTime.getSeconds() + 30);
                   setLocalEndTime(resetTime);
 
                   // Update random leader

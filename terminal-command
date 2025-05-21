@@ -1,0 +1,2 @@
+git config --global user.email "tylerlockley@proton.me"
+git config --global user.name "Tyler Lockley"

@@ -1,72 +1,43 @@
-import { Switch, Route } from "wouter";
-import { useEffect } from "react";
-import AuctionsPage from "@/pages/auctions";
-import AuctionDetailsPage from "@/pages/auction-details";
-import AuctionPacksPage from "@/pages/auction-packs";
-import ActivityPage from "@/pages/activity";
-import AboutPage from "@/pages/about";
-import DashboardPage from "@/pages/dashboard";
-import NFTCollectionsPage from "@/pages/nft-collections";
-import NotFound from "@/pages/not-found";
-import { useWebSocket } from "@/hooks/useWebSocket";
-import { queryClient } from "@/lib/queryClient";
-import Header from "@/components/layout/Header";
-import Navigation from "@/components/layout/Navigation";
-import Footer from "@/components/layout/Footer";
-import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import React, { useState, useEffect } from 'react'
+import './App.css'
 
 function App() {
-  // Temporarily disable WebSocket to focus on core app functionality
-  // const { isConnected, subscribe, error } = useWebSocket();
+  const [apiStatus, setApiStatus] = useState<string>('Loading...');
+  const [error, setError] = useState<string | null>(null);
 
-  // WebSocket events disabled temporarily to get the app working
-  /*
   useEffect(() => {
-    if (isConnected) {
-      // Subscribe to auction updates
-      const unsubscribeAuctions = subscribe("new-auction", () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/auctions"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/auctions/featured"] });
+    // Test API connection
+    fetch('/api/health')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`API responded with status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        setApiStatus(`API is working: ${data.status}`);
+        setError(null);
+      })
+      .catch(err => {
+        setApiStatus('API connection failed');
+        setError(err.message);
       });
-
-      // Subscribe to bid updates
-      const unsubscribeBids = subscribe("new-bid", () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/auctions"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/activity"] });
-      });
-
-      // Clean up subscriptions
-      return () => {
-        unsubscribeAuctions();
-        unsubscribeBids();
-      };
-    }
-  }, [isConnected, subscribe]);
-  */
+  }, []);
 
   return (
-    <CurrencyProvider>
-      <div className="min-h-screen flex flex-col bg-background">
-        <Header />
-        <Navigation />
-        <main className="flex-grow">
-          <Switch>
-            <Route path="/" component={AuctionsPage}/>
-            <Route path="/auctions" component={AuctionsPage}/>
-            <Route path="/auctions/:id" component={AuctionDetailsPage}/>
-            <Route path="/auction-packs" component={AuctionPacksPage}/>
-            <Route path="/bid-packs" component={AuctionPacksPage}/>
-            <Route path="/activity" component={ActivityPage}/>
-            <Route path="/dashboard" component={DashboardPage}/>
-            <Route path="/nft-collections" component={NFTCollectionsPage}/>
-            <Route path="/about" component={AboutPage}/>
-            <Route component={NotFound} />
-          </Switch>
-        </main>
-        <Footer />
-      </div>
-    </CurrencyProvider>
-  );
+    <div className="App">
+      <header className="App-header">
+        <h1>Bidcoin Auction</h1>
+        <p>Welcome to the Bidcoin Auction platform!</p>
+        
+        <div className="api-status">
+          <h2>API Status</h2>
+          <p>{apiStatus}</p>
+          {error && <p className="error">{error}</p>}
+        </div>
+      </header>
+    </div>
+  )
 }
 
-export default App;
+export default App

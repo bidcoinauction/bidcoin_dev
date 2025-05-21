@@ -55,8 +55,10 @@ async function connectMetaMask(): Promise<WalletConnection> {
   }
 
   try {
+    // Create a safe provider that doesn't redefine ethereum property
+    const provider = new ethers.BrowserProvider(window.ethereum, "any");
+    
     // Request account access
-    const provider = new ethers.BrowserProvider(window.ethereum);
     const accounts = await provider.send("eth_requestAccounts", []);
     
     if (!accounts || accounts.length === 0) {

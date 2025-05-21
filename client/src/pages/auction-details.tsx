@@ -17,12 +17,19 @@ import { useState, useEffect, useCallback } from "react";
 import BidModal from "@/components/modals/BidModal";
 import PaymentMethodModal from "@/components/modals/PaymentMethodModal";
 import BidActivity from "@/components/auctions/BidActivity";
-import { Heart, Share2, ExternalLink, Trophy, TrendingUp, Award } from "lucide-react";
+import { Heart, Share2, ExternalLink, Trophy, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import useWallet from "@/hooks/useWallet";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { fetchFromAPI } from "@/lib/api";
 import { nftApi } from "@/lib/apiService";
+import { alchemyApi } from "@/lib/alchemyApi";
+
+// Define interface for NFT attributes
+interface NFTAttribute {
+  trait_type: string;
+  value: string | number;
+  rarity?: number | string;
+}
 
 export default function AuctionDetailsPage() {
   const [, params] = useRoute("/auctions/:id");
@@ -31,7 +38,11 @@ export default function AuctionDetailsPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [localCurrentBid, setLocalCurrentBid] = useState<number>(0.04);
   const [localBidCount, setLocalBidCount] = useState<number>(3);
-  const [localEndTime, setLocalEndTime] = useState<Date>(new Date(Date.now() + 60 * 1000));
+  const [localEndTime, setLocalEndTime] = useState<Date>(() => {
+    const initialTime = new Date();
+    initialTime.setSeconds(initialTime.getSeconds() + 30);
+    return initialTime;
+  });
   const [localLeader, setLocalLeader] = useState<string>("");
   const [detailedMetadata, setDetailedMetadata] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -75,7 +86,7 @@ export default function AuctionDetailsPage() {
       setDetailedMetadata({
         ...auction.nft,
         // Floor price removed per requirements
-        traits: auction.nft.attributes.map(attr => ({
+        traits: auction.nft.attributes.map((attr: NFTAttribute) => ({
           trait_type: attr.trait_type,
           value: attr.value,
           rarity: attr.rarity
@@ -184,17 +195,19 @@ export default function AuctionDetailsPage() {
     fetchDetailedMetadata();
   }, [auction, toast]);
   
-  // Automatic bid simulation function
+  // Simulate random bids for demo purposes
+  const randomBidders = [
+    "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+    "0x8474627fD4893cDa3c81A36a8a7FE73984F2ec12",
+    "0x9A67F1940164d0318612b497E8e6038f902a3cEB",
+    "0xA2b4C0Af19cC16a6CfAcCe81F192B024d625817D",
+    "0xB3A8C3E1176F4592B349e6F9A98324C6E5909454"
+  ];
+  
   const simulateRandomBid = useCallback(() => {
-    // Generate a new random bidder
-    const randomBidders = [
-      "0x3aF15EA8b2e986E729E9Aa383EB18bc84A989c5D8",
-      "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
-      "0x2B96A7178F08F11d3aBc2b95E64CF2c4c55301E8",
-      "0x1A90f32fDb08E7A17D25A4D27AaAaD67D3Dc3303",
-      "0x9a8E43C44e37A52e219371c45Db11a057c6c7FFe",
-      "0x6B175474E89094C44Da98b954EedeAC495271d0F"
-    ];
+    // Only simulate bids if the auction is active
+    if (!auction || isComplete) return;
+    
     const randomBidder = randomBidders[Math.floor(Math.random() * randomBidders.length)];
     
     // Increment bid count
@@ -295,9 +308,9 @@ export default function AuctionDetailsPage() {
   }, [auctionId, isConnected, queryClient, subscribe, subscribeToAuction, requestAuctionStats]);
   
   // Use local countdown instead of server time
-  const { formattedTime, isComplete } = useCountdown({
+  const { formattedTime, isComplete, secondsRemaining } = useCountdown({
     // Ensure we always pass a valid Date object to useCountdown
-    endTime: localEndTime || new Date(Date.now() + 60 * 1000),
+    endTime: localEndTime || new Date(Date.now() + 30 * 1000),
     onComplete: () => {
       console.log("Auction complete!");
       
@@ -318,9 +331,9 @@ export default function AuctionDetailsPage() {
   
   // Parse the formatted time string into components
   const timeComponents = formattedTime ? formattedTime.split(':') : ['00', '00', '00'];
-  const hours = parseInt(timeComponents[0]);
-  const minutes = parseInt(timeComponents[1]);
-  const seconds = parseInt(timeComponents[2]);
+  const hours = parseInt(timeComponents[0] || '0');
+  const minutes = parseInt(timeComponents[1] || '0');
+  const seconds = parseInt(timeComponents[2] || '0');
   const days = Math.floor(hours / 24);
   const hoursLeft = hours % 24;
   
@@ -535,27 +548,21 @@ export default function AuctionDetailsPage() {
             /* Fallback to original attributes if detailed metadata is not available */
             !loading && auction.nft.attributes && auction.nft.attributes.length > 0 ? (
               <div className="grid grid-cols-3 gap-3">
-                {auction.nft.attributes.map((attr, index) => (
+                {auction.nft.attributes.map((attr: NFTAttribute, index: number) => (
                   <div key={index} className="bg-[#111827] rounded-lg p-3 text-center">
                     <p className="text-gray-400 text-xs mb-1">{attr.trait_type}</p>
                     <p className="text-white font-medium text-sm truncate">{attr.value}</p>
                     {attr.rarity !== undefined && (
                       <div className="mt-1 flex items-center justify-center">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white ${getRarityColor(typeof attr.rarity === 'string' ? parseFloat(attr.rarity) : attr.rarity)}`}>
-                          {getRarityLabel(typeof attr.rarity === 'string' ? parseFloat(attr.rarity) : attr.rarity)} ({formatRarity(typeof attr.rarity === 'string' ? parseFloat(attr.rarity) : attr.rarity)})
+                          {formatRarity(attr.rarity)}
                         </span>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
-            ) : (
-              !loading && (
-                <div className="bg-[#111827] rounded-lg p-4 text-center">
-                  <p className="text-gray-400">No properties found for this NFT</p>
-                </div>
-              )
-            )}
+            ) : null}
           </div>
           
           <div className="bg-[#1f2937] rounded-xl border border-[#374151]">
@@ -754,7 +761,7 @@ export default function AuctionDetailsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400 text-sm">Timer reset:</span>
-                    <span className="text-white text-sm">60 seconds</span>
+                    <span className="text-white text-sm">30 seconds</span>
                   </div>
                 </div>
               </div>
@@ -822,35 +829,7 @@ export default function AuctionDetailsPage() {
         </div>
       </div>
       
-      <div className="bg-[#1f2937] rounded-xl p-5 border border-[#374151]">
-        <div className="flex items-center mb-6">
-          <Award className="h-6 w-6 text-primary mr-2" />
-          <h2 className="text-xl font-display font-bold text-white">Related NFTs</h2>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-[#111827] rounded-xl overflow-hidden border border-[#374151] hover:shadow-lg transition-all hover:-translate-y-1">
-              <div className="aspect-square overflow-hidden">
-                <img 
-                  src={`/placeholder-nft-${(i % 4) + 1}.jpg`} 
-                  alt="Related NFT" 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-              <div className="p-4">
-                <h3 className="text-white font-medium mb-1 truncate">Collection #{1000 + i}</h3>
-                <Button 
-                  variant="outline" 
-                  className="w-full text-primary border-primary hover:bg-primary/10"
-                >
-                  View Auctions
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Remove the Related NFTs section */}
       
       {/* Bid Modal */}
       {showBidModal && (

@@ -1,78 +1,37 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { createServer } from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import express, { Request, Response, NextFunction } from 'express';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import cors from 'cors';
+import { nanoid } from 'nanoid';
+import { setupVite, serveStatic, log } from './vite';
+import apiRoutes from './routes/api';
 
-// Define custom WebSocket interface with clientId property
-interface CustomWebSocket extends WebSocket {
-  clientId?: string;
-}
-
-// Create Express app
 const app = express();
 const server = createServer(app);
 
-// Create WebSocket server attached to the HTTP server
-const wss = new WebSocketServer({ 
-  server,
-  path: '/ws' // Explicitly set the path
-});
+// Enable CORS
+app.use(cors());
 
-// Store connected clients
-const clients = new Set<CustomWebSocket>();
-
-// Middleware setup
+// Parse JSON request bodies
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(express.static('public'));
 
-// Logging middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+// Register API routes
+app.use('/api', apiRoutes);
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+// Set up WebSocket server
+const wss = new WebSocketServer({ server, path: '/ws' });
+const clients = new Map();
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
-
-// WebSocket connection handler
-wss.on('connection', (ws: CustomWebSocket, req) => {
-  log('[websocket] Client connected');
-  clients.add(ws);
+wss.on('connection', (ws) => {
+  const clientId = nanoid();
+  clients.set(ws, clientId);
+  log(`[websocket] Client ${clientId} connected`);
   
-  // Generate a unique client ID
-  const clientId = `client-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-  ws.clientId = clientId;
-  
-  // Send initial connection confirmation
+  // Send welcome message
   ws.send(JSON.stringify({
     type: 'connected',
     data: {
       clientId,
-      serverVersion: '1.0.0',
       message: 'Connected to WebSocket server',
       timestamp: new Date().toISOString()
     }
@@ -86,7 +45,6 @@ wss.on('connection', (ws: CustomWebSocket, req) => {
       
       // Handle different message types
       if (data.type === 'ping') {
-        // Respond to ping with pong
         ws.send(JSON.stringify({
           type: 'pong',
           data: {
@@ -94,19 +52,9 @@ wss.on('connection', (ws: CustomWebSocket, req) => {
             clientId
           }
         }));
-      } else if (data.type === 'subscribe' && data.auctionId) {
-        // Handle subscription to auction
-        ws.send(JSON.stringify({
-          type: 'subscription-confirmed',
-          data: {
-            auctionId: data.auctionId,
-            message: `Subscribed to auction ${data.auctionId} updates`,
-            timestamp: new Date().toISOString()
-          }
-        }));
       }
     } catch (error) {
-      log(`[websocket] Error processing message: ${error}`);
+      log(`[websocket] Error parsing message: ${error}`);
     }
   });
   
@@ -120,9 +68,6 @@ wss.on('connection', (ws: CustomWebSocket, req) => {
 // Main application setup
 (async () => {
   try {
-    // Register routes
-    await registerRoutes(app);
-
     // Error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
@@ -132,17 +77,17 @@ wss.on('connection', (ws: CustomWebSocket, req) => {
     });
 
     // Setup Vite or serve static files
-    if (app.get("env") === "development") {
+    if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
 
-    // Use port 4000 for development
+    // Use port 4000 for development, 5000 for production, or from env var
     const port = process.env.PORT || (process.env.NODE_ENV === "development" ? 4000 : 5000);
     
-    // Use localhost for binding - fix the type error by using a number for port
-    server.listen(Number(port), 'localhost', () => {
+    // Listen on all interfaces (0.0.0.0) to allow external connections
+    server.listen(Number(port), '0.0.0.0', () => {
       log(`Server running at http://localhost:${port}`);
       log(`WebSocket server running at ws://localhost:${port}/ws`);
     });
@@ -151,15 +96,3 @@ wss.on('connection', (ws: CustomWebSocket, req) => {
     process.exit(1);
   }
 })();
-
-// Export a function to broadcast messages to all clients
-export function broadcastMessage(type: string, data: any) {
-  const message = JSON.stringify({ type, data });
-  log(`[websocket] Broadcasting ${type} to ${clients.size} clients`);
-  
-  clients.forEach((client: CustomWebSocket) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-}

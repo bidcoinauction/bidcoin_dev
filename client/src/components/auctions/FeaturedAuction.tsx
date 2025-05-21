@@ -17,7 +17,7 @@ export default function FeaturedAuction() {
   // Calculate price based on bid count (always $0.03 per bid)
   const initialPrice = parseFloat((3 * 0.03).toFixed(2)); // 3 bids = $0.09
   const [localPrice, setLocalPrice] = useState<number>(initialPrice);
-  const [localEndTime, setLocalEndTime] = useState<Date>(new Date(Date.now() + 60 * 1000));
+  const [localEndTime, setLocalEndTime] = useState<Date>(new Date(Date.now() + 30 * 1000));
   const [localLeader, setLocalLeader] = useState<string>("");
 
   // Get currency display preference from global context

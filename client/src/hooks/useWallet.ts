@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useToast } from './use-toast';
+import { useToast } from '@/hooks/use-toast';
 
-type WalletProvider = 'metamask' | 'wallet-connect' | 'phantom';
+// Define wallet provider types
+export type WalletProvider = 'metamask' | 'coinbase' | 'walletconnect';
 
-interface UseWalletReturn {
+// Define connection states
+export enum ConnectionState {
+  DISCONNECTED = 'disconnected',
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  ERROR = 'error'
+}
+
+// Define return type for the hook
+export interface UseWalletReturn {
   address: string | null;
   connect: (provider: WalletProvider) => Promise<void>;
   disconnect: () => void;
@@ -12,6 +22,12 @@ interface UseWalletReturn {
   chainId: number | null;
   switchChain: (chainId: number) => Promise<void>;
 }
+
+// Safe check for ethereum object without redefining properties
+const hasEthereum = () => {
+  return typeof window !== 'undefined' && 
+         typeof window.ethereum !== 'undefined';
+};
 
 const useWallet = (): UseWalletReturn => {
   const [address, setAddress] = useState<string | null>(null);
@@ -53,22 +69,16 @@ const useWallet = (): UseWalletReturn => {
       localStorage.setItem('wallet_address', mockAddress);
       localStorage.setItem('wallet_chain_id', mockChainId.toString());
       
-      // Register the user with this wallet address in our system
+      // Register user with the backend
       try {
-        // Generate random username based on wallet address
-        const username = `user_${mockAddress.substring(2, 8)}`;
-        
-        // Create the user via API
-        const response = await fetch('/api/users', {
+        const response = await fetch('/api/users/register', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            username,
             walletAddress: mockAddress,
-            avatarUrl: `https://api.dicebear.com/7.x/identicon/svg?seed=${mockAddress}`,
-            role: 'user',
+            provider: provider,
           }),
         });
         
