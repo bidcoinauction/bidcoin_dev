@@ -49,31 +49,32 @@ export async function connectWallet(walletType: WalletType): Promise<WalletConne
 
 // Connect to MetaMask
 async function connectMetaMask(): Promise<WalletConnection> {
-  // Check if MetaMask is installed
-  if (!window.ethereum) {
+  // Check if MetaMask is installed - use the safe wrapper if available
+  const provider = window._safeEthereum || window.ethereum;
+  if (!provider) {
     throw new Error("MetaMask is not installed");
   }
 
   try {
-    // Create a safe provider that doesn't redefine ethereum property
-    const provider = new ethers.BrowserProvider(window.ethereum, "any");
+    // Create a provider that doesn't redefine ethereum property
+    const ethersProvider = new ethers.BrowserProvider(provider, "any");
     
     // Request account access
-    const accounts = await provider.send("eth_requestAccounts", []);
+    const accounts = await ethersProvider.send("eth_requestAccounts", []);
     
     if (!accounts || accounts.length === 0) {
       throw new Error("No accounts found");
     }
     
     const address = accounts[0];
-    const balance = ethers.formatEther(await provider.getBalance(address));
-    const { chainId } = await provider.getNetwork();
+    const balance = ethers.formatEther(await ethersProvider.getBalance(address));
+    const { chainId } = await ethersProvider.getNetwork();
     
     return {
       address,
       balance,
       chainId: Number(chainId),
-      provider,
+      provider: ethersProvider,
       state: ConnectionState.CONNECTED,
       error: null
     };

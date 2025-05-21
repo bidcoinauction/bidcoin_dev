@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from './use-toast';
 
 // Define wallet provider types
 export type WalletProvider = 'metamask' | 'coinbase' | 'walletconnect';
@@ -22,12 +22,6 @@ export interface UseWalletReturn {
   chainId: number | null;
   switchChain: (chainId: number) => Promise<void>;
 }
-
-// Safe check for ethereum object without redefining properties
-const hasEthereum = () => {
-  return typeof window !== 'undefined' && 
-         typeof window.ethereum !== 'undefined';
-};
 
 const useWallet = (): UseWalletReturn => {
   const [address, setAddress] = useState<string | null>(null);
