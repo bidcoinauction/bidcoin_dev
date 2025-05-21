@@ -10,7 +10,7 @@ dns.setDefaultResultOrder('verbatim');
 export default defineConfig({
   plugins: [react()],
   root: path.resolve(__dirname, 'client'), // Set the root directory to client
-  publicDir: path.resolve(__dirname, 'client/public'),
+  publicDir: path.resolve(__dirname, 'client/assets'),
   server: {
     port: 3000, // Use a different port than the backend
     strictPort: true, // Fail if port is in use
@@ -33,7 +33,7 @@ export default defineConfig({
     host: '0.0.0.0', // Listen on all addresses for preview too
   },
   build: {
-    outDir: '../dist/public', // Output to dist/public relative to client directory
+    outDir: '../dist', // Output to dist/public relative to client directory
     emptyOutDir: true,
   },
   resolve: {
